@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="th" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>คลังสนิปเป็ต &amp; พรอมต์ส่วนตัว</title>
+
+<!-- ฟอนต์ (ถ้าออฟไลน์จะใช้ฟอนต์ในเครื่องแทนอัตโนมัติ) -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<!-- Tailwind CSS ผ่าน CDN (สคริปต์ธรรมดา ไม่ใช่ ES Module จึงเปิดผ่าน file:// ได้) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  if (window.tailwind) {
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"IBM Plex Sans Thai"', 'Inter', '"Segoe UI"', '"Leelawadee UI"', 'Tahoma', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'Consolas', '"IBM Plex Sans Thai"', '"Leelawadee UI"', 'ui-monospace', 'monospace']
+          }
+        }
+      }
+    };
+  }
+</script>
+
+<!-- Firebase (compat build = สคริปต์ธรรมดา ไม่ใช่ ES Module จึงเปิดผ่าน file:// ได้) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  /* ส่วนเล็ก ๆ ที่ Tailwind ไม่มีให้โดยตรง */
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: #e4e4e7; border-radius: 9999px; }
+  .scroll-thin::-webkit-scrollbar-thumb:hover { background: #d4d4d8; }
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes popIn { from { opacity: 0; transform: translateY(8px) scale(.98) } to { opacity: 1; transform: none } }
+  @keyframes dropIn { from { opacity: 0; transform: translateY(-4px) } to { opacity: 1; transform: none } }
+  .anim-fade { animation: fadeIn .15s ease-out; }
+  .anim-pop { animation: popIn .18s ease-out; }
+  .anim-drop { animation: dropIn .12s ease-out; }
+  svg.i { flex-shrink: 0; }
+</style>
+</head>
+
+<body class="h-full overflow-hidden bg-zinc-50 text-zinc-900 font-sans antialiased">
+<div class="flex h-full">
+
+  <!-- ============ Sidebar (Desktop) ============ -->
+  <aside id="sidebar" class="hidden lg:flex w-72 shrink-0 h-full flex-col bg-white border-r border-zinc-200"></aside>
+
+  <!-- ============ Main ============ -->
+  <main id="main" class="flex-1 min-w-0 h-full overflow-y-auto scroll-thin">
+    <header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-zinc-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-2 sm:gap-3">
+        <div id="mobileLogo" class="lg:hidden h-8 w-8 shrink-0 rounded-lg bg-zinc-900 text-white flex items-center justify-center"></div>
+
+        <div id="searchWrap" class="relative flex-1 max-w-xl">
+          <span id="searchIcon" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"></span>
+          <input id="search" type="text" autocomplete="off"
+            placeholder="ค้นหาจากชื่อ คำอธิบาย เนื้อหา หรือแท็ก…"
+            class="w-full h-9 rounded-lg bg-white pl-9 pr-10 text-sm ring-1 ring-inset ring-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 shadow-sm">
+          <kbd id="searchHint" class="hidden sm:block absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-zinc-400 border border-zinc-200 rounded px-1.5 bg-zinc-50 font-sans">/</kbd>
+          <button id="searchClear" data-action="clear-query" aria-label="ล้างคำค้นหา"
+            class="hidden absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded text-zinc-400 hover:text-zinc-700"></button>
+        </div>
+
+        <button id="syncPill" data-action="sync-info" title="สถานะการซิงค์ข้อมูล"
+          class="shrink-0 inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg bg-white ring-1 ring-inset ring-zinc-200 text-xs text-zinc-600 hover:bg-zinc-50 shadow-sm"></button>
+
+        <button id="newBtn" data-action="new"
+          class="shrink-0 inline-flex items-center justify-center gap-1.5 h-9 px-3 sm:px-3.5 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 shadow-sm transition-colors"></button>
+
+        <div class="relative lg:hidden">
+          <button id="moreBtn" data-action="more-toggle" aria-label="เมนูสำรองข้อมูล"
+            class="h-9 w-9 inline-flex items-center justify-center rounded-lg bg-white ring-1 ring-inset ring-zinc-200 text-zinc-600 hover:bg-zinc-50 shadow-sm"></button>
+          <div id="moreMenu" class="hidden anim-drop absolute right-0 mt-2 w-56 rounded-xl bg-white shadow-xl ring-1 ring-zinc-200 p-1.5 z-40"></div>
+        </div>
+      </div>
+
+      <!-- แถบเมนูหมวดหมู่ด้านบน (มือถือ / แท็บเล็ต) -->
+      <nav id="mobileCats" class="lg:hidden flex gap-2 overflow-x-auto no-scrollbar px-4 sm:px-6 pb-3"></nav>
+      <div id="mobileTags" class="lg:hidden flex gap-1.5 overflow-x-auto no-scrollbar px-4 sm:px-6 pb-3"></div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div id="syncBanner"></div>
+      <div id="pageHead"></div>
+      <div id="grid"></div>
+      <p class="mt-10 text-center text-xs text-zinc-400 leading-relaxed">
+        <span id="footNote">ซิงค์ข้อมูลอัตโนมัติผ่าน Firebase ทุกเครื่อง</span> · กด <kbd class="px-1 border border-zinc-200 rounded bg-white font-sans">/</kbd> เพื่อค้นหา
+        · กด <kbd class="px-1 border border-zinc-200 rounded bg-white font-sans">N</kbd> เพื่อเพิ่มรายการใหม่
+      </p>
+    </div>
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toasts" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] flex flex-col items-center gap-2 pointer-events-none"></div>
+<input type="file" id="fileInput" accept="application/json,.json" hidden>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =================================================================
+     ตั้งค่า Firebase
+     - FIREBASE_CONFIG: ค่าจาก Firebase Console ของคุณ
+     - LIBRARY_ID: รหัสคลังข้อมูล (สุ่มไว้แล้ว) ใช้แยกข้อมูลของคุณใน Firestore
+       ทุกเครื่องที่เปิดไฟล์นี้จะเห็นข้อมูลชุดเดียวกัน — อย่าเผยแพร่ไฟล์นี้ต่อสาธารณะ
+     ================================================================= */
+  var FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyDzCdwSptdIQg0-ajIJL7K7TntJbBV-0hc',
+    authDomain: 'snippet-library-bcab1.firebaseapp.com',
+    projectId: 'snippet-library-bcab1',
+    storageBucket: 'snippet-library-bcab1.firebasestorage.app',
+    messagingSenderId: '113452217338',
+    appId: '1:113452217338:web:29fb0836d5b1cd23acaa43'
+  };
+  var LIBRARY_ID = 'lib_e927d834e732a55578c8ba37970ac40e';
+
+  /* =================================================================
+     ไอคอน (SVG ฝังในไฟล์ สไตล์ Lucide — ไม่ต้องโหลดไลบรารีเพิ่ม)
+     ================================================================= */
+  var ICONS = {
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    pencil: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+    sparkles: '<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/>',
+    sheet: '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+    briefcase: '<rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+    braces: '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/>',
+    reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    library: '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/>',
+    sliders: '<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+    alert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+    okCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+    file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"/><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"/>',
+    searchX: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="m13.5 8.5-5 5"/><path d="m8.5 8.5 5 5"/>',
+    wand: '<path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/>',
+    chevronDown: '<path d="m6 9 6 6 6-6"/>',
+    tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+    cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+    cloudOff: '<path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/>',
+    database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>'
+  };
+  function icon(name, cls, size) {
+    size = size || 16;
+    return '<svg class="i ' + (cls || '') + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+  }
+
+  /* =================================================================
+     หมวดหมู่ + โทนสี (เขียนคลาสเต็มเพื่อให้ Tailwind CDN สร้างได้ครบ)
+     ================================================================= */
+  var CATEGORIES = [
+    { id: 'all', label: 'ทั้งหมด', short: 'ทั้งหมด', icon: 'grid',
+      desc: 'รวมทุกพรอมต์ สูตร และเทมเพลตในคลังของคุณ',
+      iconBg: 'bg-zinc-100 text-zinc-700', activeNav: 'bg-zinc-100 text-zinc-900', countActive: 'bg-zinc-900 text-white',
+      pillActive: 'bg-zinc-900 text-white ring-zinc-900' },
+    { id: 'ai', label: 'คลังพรอมต์ AI', short: 'พรอมต์ AI', icon: 'sparkles',
+      desc: 'พรอมต์สำเร็จรูปสำหรับ ChatGPT, Claude, Gemini และ AI อื่น ๆ',
+      iconBg: 'bg-violet-100 text-violet-600', activeNav: 'bg-violet-50 text-violet-900', countActive: 'bg-violet-600 text-white',
+      pillActive: 'bg-violet-600 text-white ring-violet-600',
+      badge: 'bg-violet-50 text-violet-700 ring-violet-200', dot: 'bg-violet-500', bar: 'bg-violet-500' },
+    { id: 'sheets', label: 'สูตร Google Sheets / Excel', short: 'สูตร Sheets / Excel', icon: 'sheet',
+      desc: 'สูตรพร้อมใช้สำหรับ Google Sheets และ Microsoft Excel',
+      iconBg: 'bg-emerald-100 text-emerald-600', activeNav: 'bg-emerald-50 text-emerald-900', countActive: 'bg-emerald-600 text-white',
+      pillActive: 'bg-emerald-600 text-white ring-emerald-600',
+      badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500', bar: 'bg-emerald-500' },
+    { id: 'work', label: 'เทมเพลตงานทั่วไป', short: 'เทมเพลตงาน', icon: 'briefcase',
+      desc: 'เทมเพลตเอกสารและงานประจำวัน เช่น บันทึกการประชุม',
+      iconBg: 'bg-orange-100 text-orange-600', activeNav: 'bg-orange-50 text-orange-900', countActive: 'bg-orange-500 text-white',
+      pillActive: 'bg-orange-500 text-white ring-orange-500',
+      badge: 'bg-orange-50 text-orange-700 ring-orange-200', dot: 'bg-orange-500', bar: 'bg-orange-500' }
+  ];
+  function catOf(id) { for (var i = 0; i < CATEGORIES.length; i++) if (CATEGORIES[i].id === id) return CATEGORIES[i]; return CATEGORIES[3]; }
+
+  /* =================================================================
+     คำอธิบายตัวแปร (ชื่อภาษาไทย + ตัวอย่าง) — ตัวแปรอื่นจะแสดงชื่อเดิม
+     ================================================================= */
+  var VAR_HINTS = {
+    role: ['บทบาทของ AI', 'เช่น Chief of Staff, ที่ปรึกษาธุรกิจ'],
+    audience: ['กลุ่มผู้อ่าน', 'เช่น ผู้บริหารระดับสูง, ทีมการตลาด'],
+    content: ['เนื้อหาที่ต้องการสรุป', 'วางบทความหรือรายงานที่นี่…'],
+    language: ['ภาษาโปรแกรม', 'เช่น Python, JavaScript, SQL'],
+    code: ['โค้ดที่ต้องการตรวจ', 'วางโค้ดที่นี่…'],
+    business_context: ['บริบทธุรกิจ', 'เช่น ร้านค้าออนไลน์ ต้องการเพิ่มยอดขายไตรมาส 4'],
+    data: ['ชุดข้อมูล', 'วางข้อมูล (CSV / ตาราง) ที่นี่…'],
+    tone: ['โทนภาษา', 'เช่น เป็นทางการ สุภาพ กระชับ'],
+    draft_text: ['ข้อความต้นฉบับ', 'วางข้อความอีเมลหรือแชทที่ต้องการปรับ…'],
+    range: ['ช่วงข้อมูล', 'เช่น A1:F100 หรือ Sheet1!A:F'],
+    column: ['คอลัมน์ที่ใช้กรอง', 'เช่น C'],
+    value: ['ค่าที่ต้องการกรอง', 'เช่น Completed'],
+    sort_col: ['คอลัมน์ที่ใช้เรียงลำดับ', 'เช่น D'],
+    lookup_value: ['ค่าที่ต้องการค้นหา', 'เช่น A2'],
+    lookup_range: ['ช่วงที่ใช้ค้นหา', 'เช่น Sheet2!A:A'],
+    return_range: ['ช่วงที่ต้องการคืนค่า', 'เช่น Sheet2!C:C'],
+    not_found_text: ['ข้อความเมื่อไม่พบข้อมูล', 'เช่น ไม่พบข้อมูล'],
+    check_col: ['คอลัมน์ที่ใช้ตรวจแถวว่าง', 'เช่น A2:A'],
+    formula_expression: ['สูตรคำนวณ', 'เช่น B2:B * C2:C'],
+    meeting_topic: ['หัวข้อการประชุม', 'เช่น วางแผนแคมเปญ Q1'],
+    date: ['วันที่ประชุม', 'เช่น 25/11/2026'],
+    attendees: ['ผู้เข้าร่วมประชุม', 'เช่น คุณเอ, คุณบี, คุณซี']
+  };
+  function varLabel(v) { return VAR_HINTS[v] ? VAR_HINTS[v][0] : v.replace(/[_-]+/g, ' '); }
+  function varPlaceholder(v) { return VAR_HINTS[v] ? VAR_HINTS[v][1] : 'กรอกค่า ' + v + '…'; }
+  function isLongVar(v) { return /content|code|data|text|body|draft|notes|description|message|context|expression/i.test(v) && !/^(formula_expression|business_context|not_found_text)$/.test(v); }
+
+  /* =================================================================
+     ข้อมูลตั้งต้น 8 รายการ (ชื่อ/คำอธิบายภาษาไทย เนื้อหามาตรฐานสากล)
+     ================================================================= */
+  var STORAGE_KEY = 'snippet-library:snippets:v1';
+  var VALUES_KEY = 'snippet-library:values:v1';
+  var CLOUD_CACHE_KEY = 'snippet-library:cloud-cache:v1'; // สำเนาล่าสุดจาก Firebase ไว้ใช้ตอนโหลด SDK ไม่ได้
+  var VAR_SRC = '\\{\\{\\s*([^{}]+?)\\s*\\}\\}';
+
+  var SEED_DATA = [
+    {
+      id: 'seed-exec-summary', category: 'ai',
+      legacyTitle: 'Executive Summary & Action Items',
+      title: 'สรุปสาระสำคัญสำหรับผู้บริหาร & Action Items',
+      description: 'สรุปบทความหรือรายงานยาว ๆ ให้เป็น Bullet points กระชับ พร้อมดึงงานที่ต้องทำ ผู้รับผิดชอบ และลำดับความสำคัญ',
+      tags: ['summary', 'report', 'productivity'],
+      content: [
+        'Act as a {{role}}. Read the content below and write an executive summary tailored for {{audience}}.',
+        '',
+        'Output format:',
+        '1. **TL;DR** — one sentence that captures the core message.',
+        '2. **Key Points** — 5–7 concise bullet points, ordered by importance.',
+        '3. **Risks & Open Questions** — anything unclear, missing, or concerning.',
+        '4. **Action Items** — a table with columns: Action | Owner (or "TBD") | Priority (High / Medium / Low) | Deadline (if mentioned).',
+        '',
+        'Rules:',
+        '- Stay factual. Do not invent anything that is not in the source.',
+        '- Use plain language; avoid jargon unless the audience expects it.',
+        '- Keep the summary under 300 words (excluding the table).',
+        '',
+        'Content:',
+        '"""',
+        '{{content}}',
+        '"""'
+      ].join('\n')
+    },
+    {
+      id: 'seed-code-review', category: 'ai',
+      legacyTitle: 'Senior Code Reviewer',
+      title: 'ผู้ตรวจโค้ดระดับซีเนียร์ (Code Review)',
+      description: 'ตรวจหาบั๊ก ช่องโหว่ด้านความปลอดภัย ปัญหาประสิทธิภาพ และเสนอโค้ดที่ Refactor ให้อ่านง่ายและคลีนขึ้น',
+      tags: ['code', 'review', 'security', 'refactor'],
+      content: [
+        'You are a senior {{language}} engineer performing a thorough code review.',
+        '',
+        'Review the code below and respond with these sections:',
+        '',
+        '1. **Bugs & Logic Errors** — incorrect behavior, edge cases, off-by-one errors, null/undefined handling, race conditions.',
+        '2. **Security Issues** — injection, unsafe input handling, secrets in code, auth/permission flaws, insecure dependencies. Rate each: Critical / High / Medium / Low.',
+        '3. **Performance** — unnecessary work, N+1 queries, memory leaks, poor algorithmic complexity.',
+        '4. **Readability & Maintainability** — naming, function size, duplication, missing types, unclear intent.',
+        '5. **Refactored Version** — a clean, idiomatic rewrite that fixes the issues above, with short comments explaining key changes.',
+        '',
+        'For every issue, quote the relevant line(s), explain why it matters, and show the fix.',
+        'If something is fine, do not invent problems.',
+        '',
+        '```{{language}}',
+        '{{code}}',
+        '```'
+      ].join('\n')
+    },
+    {
+      id: 'seed-data-analysis', category: 'ai',
+      legacyTitle: 'Data Analysis & KPI Insights',
+      title: 'วิเคราะห์ข้อมูล & สรุปอินไซต์ KPI',
+      description: 'วิเคราะห์ชุดข้อมูลเพื่อหาแนวโน้ม (Trend) ความผิดปกติ (Anomaly) และข้อเสนอแนะเชิงธุรกิจที่นำไปใช้ได้จริง',
+      tags: ['data', 'kpi', 'analytics', 'business'],
+      content: [
+        'Act as a senior data analyst. Business context: {{business_context}}',
+        '',
+        'Analyze the dataset below and deliver:',
+        '',
+        '1. **Data Overview** — what the data covers (period, dimensions, metrics) and any quality issues (missing values, outliers, inconsistencies).',
+        '2. **Key Trends** — the 3–5 most important trends, with numbers (growth %, averages, period-over-period change).',
+        '3. **Anomalies** — unusual spikes, drops, or patterns, and plausible explanations.',
+        '4. **KPI Assessment** — how the main KPIs are performing and which ones need attention.',
+        '5. **Business Recommendations** — 3–5 specific, actionable recommendations, each with expected impact and priority.',
+        '6. **Next Steps** — additional data or analyses that would strengthen these conclusions.',
+        '',
+        'Show calculations where useful. Clearly separate facts from assumptions.',
+        '',
+        'Data:',
+        '"""',
+        '{{data}}',
+        '"""'
+      ].join('\n')
+    },
+    {
+      id: 'seed-tone-rewriter', category: 'ai',
+      legacyTitle: 'Professional Tone Rewriter',
+      title: 'ปรับภาษาให้เป็นมืออาชีพ (อีเมล / แชท)',
+      description: 'เกลาข้อความอีเมลหรือแชทให้สุภาพ กระชับ และเป็นมืออาชีพ พร้อม 2 เวอร์ชันให้เลือกใช้',
+      tags: ['email', 'writing', 'communication'],
+      content: [
+        'Rewrite the message below so it sounds professional, clear, and polite.',
+        '',
+        'Target tone: {{tone}}',
+        '',
+        'Guidelines:',
+        '- Keep the original meaning and every key fact (names, dates, numbers).',
+        '- Make it concise: remove filler, redundancy, and hedging.',
+        '- Use a clear structure: purpose first, then details, then a clear call to action.',
+        '- Keep the same language as the original unless asked otherwise.',
+        '- Provide 2 versions: (A) a short version, (B) a slightly more detailed version.',
+        '- After the rewrites, list the main changes you made in 2–3 bullets.',
+        '',
+        'Original message:',
+        '"""',
+        '{{draft_text}}',
+        '"""'
+      ].join('\n')
+    },
+    {
+      id: 'seed-query-filter', category: 'sheets',
+      legacyTitle: 'Dynamic QUERY Filter (Google Sheets)',
+      title: 'ดึงข้อมูลตามเงื่อนไขด้วย QUERY (Google Sheets)',
+      description: 'กรองเฉพาะแถวที่ตรงเงื่อนไขในคอลัมน์ที่กำหนด แล้วเรียงลำดับจากมากไปน้อย ด้วยไวยากรณ์คล้าย SQL',
+      tags: ['google-sheets', 'query', 'filter', 'sort'],
+      content: '=QUERY({{range}}, "SELECT * WHERE {{column}} = \'{{value}}\' ORDER BY {{sort_col}} DESC", 1)'
+    },
+    {
+      id: 'seed-xlookup', category: 'sheets',
+      legacyTitle: 'XLOOKUP with Fallback (Excel / Sheets)',
+      title: 'ค้นหาข้อมูลด้วย XLOOKUP พร้อมดัก Error (Excel / Sheets)',
+      description: 'ใช้แทน VLOOKUP ได้ดีกว่า ค้นหาได้ทุกทิศทาง และแสดงข้อความที่กำหนดเองเมื่อไม่พบข้อมูล',
+      tags: ['excel', 'google-sheets', 'lookup', 'xlookup'],
+      content: '=XLOOKUP({{lookup_value}}, {{lookup_range}}, {{return_range}}, "{{not_found_text}}")'
+    },
+    {
+      id: 'seed-arrayformula', category: 'sheets',
+      legacyTitle: 'ArrayFormula Auto-Fill (Google Sheets)',
+      title: 'คำนวณทั้งคอลัมน์อัตโนมัติด้วย ARRAYFORMULA (Google Sheets)',
+      description: 'ใส่สูตรเพียงครั้งเดียวที่แถวแรก ระบบคำนวณให้ทั้งคอลัมน์ และข้ามแถวที่ว่างให้อัตโนมัติ',
+      tags: ['google-sheets', 'arrayformula', 'automation'],
+      content: '=ARRAYFORMULA(IF({{check_col}}="", "", {{formula_expression}}))'
+    },
+    {
+      id: 'seed-meeting-minutes', category: 'work',
+      legacyTitle: 'Structured Meeting Minutes (Markdown)',
+      title: 'บันทึกการประชุมแบบมีโครงสร้าง (Markdown)',
+      description: 'เทมเพลตรายงานการประชุมมาตรฐานสากล: ผู้เข้าร่วม วาระ ข้อสรุปสำคัญ (Key Decisions) และ Action Items',
+      tags: ['meeting', 'markdown', 'template'],
+      content: [
+        '# Meeting Minutes: {{meeting_topic}}',
+        '',
+        '**Date:** {{date}}',
+        '**Attendees:** {{attendees}}',
+        '**Facilitator:**',
+        '**Note-taker:**',
+        '',
+        '---',
+        '',
+        '## 1. Agenda',
+        '1.',
+        '2.',
+        '3.',
+        '',
+        '## 2. Discussion Summary',
+        '- **Topic 1:**',
+        '- **Topic 2:**',
+        '',
+        '## 3. Key Decisions',
+        '| # | Decision | Rationale | Decided by |',
+        '|---|----------|-----------|------------|',
+        '| 1 |          |           |            |',
+        '',
+        '## 4. Action Items',
+        '| # | Action | Owner | Due Date | Status |',
+        '|---|--------|-------|----------|--------|',
+        '| 1 |        |       |          | Open   |',
+        '',
+        '## 5. Open Questions / Parking Lot',
+        '-',
+        '',
+        '## 6. Next Meeting',
+        '**Date:**',
+        '**Focus:**'
+      ].join('\n')
+    }
+  ];
+  function seedById(id) { for (var i = 0; i < SEED_DATA.length; i++) if (SEED_DATA[i].id === id) return SEED_DATA[i]; return null; }
+  function seedSnippets() {
+    var now = Date.now();
+    return SEED_DATA.map(function (s, i) {
+      return { id: s.id, title: s.title, description: s.description, category: s.category, tags: s.tags.slice(), content: s.content, createdAt: now - i * 1000, updatedAt: now - i * 1000 };
+    });
+  }
+
+  /* =================================================================
+     ฟังก์ชันช่วย
+     ================================================================= */
+  function $(sel) { return document.querySelector(sel); }
+  function uid() { return 's-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function extractVars(text) {
+    var out = [], m, re = new RegExp(VAR_SRC, 'g');
+    while ((m = re.exec(text || '')) !== null) {
+      var name = m[1].trim();
+      if (name && out.indexOf(name) === -1) out.push(name);
+    }
+    return out;
+  }
+  function fillVars(text, vals) {
+    vals = vals || {};
+    return (text || '').replace(new RegExp(VAR_SRC, 'g'), function (match, name) {
+      var v = vals[name.trim()];
+      return v !== undefined && v !== '' ? v : match;
+    });
+  }
+  /* แสดงข้อความพร้อมไฮไลต์ตัวแปร: ฟ้า = ยังไม่กรอก, เขียว = กรอกแล้ว */
+  function highlight(text, vals) {
+    var re = new RegExp(VAR_SRC, 'g'), html = '', last = 0, m;
+    text = text || '';
+    while ((m = re.exec(text)) !== null) {
+      html += esc(text.slice(last, m.index));
+      var name = m[1].trim(), v = vals ? vals[name] : undefined;
+      if (v !== undefined && v !== '') html += '<mark class="bg-emerald-50 text-emerald-800 rounded px-0.5 ring-1 ring-emerald-200">' + esc(v) + '</mark>';
+      else html += '<mark class="bg-sky-50 text-sky-700 rounded px-1 ring-1 ring-sky-200 font-medium">{{' + esc(name) + '}}</mark>';
+      last = m.index + m[0].length;
+    }
+    return html + esc(text.slice(last));
+  }
+  function normTag(t) { return String(t).trim().toLowerCase().replace(/^#/, '').replace(/\s+/g, '-'); }
+
+  var BTN = 'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none';
+  var BTN_SIZE = { md: 'h-9 px-3.5 text-sm', sm: 'h-8 px-2.5 text-[13px]' };
+  var BTN_VAR = {
+    primary: 'bg-zinc-900 text-white hover:bg-zinc-800 shadow-sm',
+    secondary: 'bg-white text-zinc-700 ring-1 ring-inset ring-zinc-200 hover:bg-zinc-50 shadow-sm',
+    ghost: 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100',
+    danger: 'bg-red-600 text-white hover:bg-red-700 shadow-sm',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-600 shadow-sm'
+  };
+  function btnCls(variant, size, extra) { return BTN + ' ' + BTN_SIZE[size || 'md'] + ' ' + BTN_VAR[variant || 'secondary'] + ' ' + (extra || ''); }
+  var FIELD = 'w-full rounded-lg bg-white px-3 py-2 text-sm text-zinc-900 ring-1 ring-inset ring-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 transition-shadow';
+
+  /* ที่เก็บข้อมูลแบบไม่ทำให้แอปพัง (เช่น เบราว์เซอร์บล็อก localStorage) */
+  var storageOk = true;
+  function load(key, fallback) {
+    try { var raw = window.localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch (e) { storageOk = false; return fallback; }
+  }
+  function save(key, value) {
+    try { window.localStorage.setItem(key, JSON.stringify(value)); }
+    catch (e) { if (storageOk) { storageOk = false; toast('เบราว์เซอร์ไม่อนุญาตให้บันทึกข้อมูล — กรุณาใช้ "ส่งออก JSON" เพื่อสำรองข้อมูล', 'error'); } }
+  }
+
+  function normalizeSnippet(s) {
+    if (!s || typeof s !== 'object') return null;
+    var content = typeof s.content === 'string' ? s.content : '';
+    var title = typeof s.title === 'string' ? s.title.trim() : '';
+    if (!title && !content) return null;
+    var tags = [];
+    if (Array.isArray(s.tags)) s.tags.forEach(function (t) { t = normTag(t); if (t && tags.indexOf(t) === -1) tags.push(t); });
+    var validId = typeof s.id === 'string' && s.id && s.id.length <= 200 && s.id.indexOf('/') === -1 && s.id !== '.' && s.id !== '..' && !/^__.*__$/.test(s.id);
+    var out = {
+      id: validId ? s.id : uid(),
+      title: title || 'ไม่มีชื่อ',
+      description: typeof s.description === 'string' ? s.description.trim() : '',
+      category: ['ai', 'sheets', 'work'].indexOf(s.category) !== -1 ? s.category : 'work',
+      tags: tags,
+      content: content,
+      createdAt: Number(s.createdAt) || Date.now(),
+      updatedAt: Number(s.updatedAt) || Date.now()
+    };
+    // อัปเกรดรายการตัวอย่างจากเวอร์ชันเก่า (ชื่ออังกฤษ) ให้เป็นชื่อ/คำอธิบายภาษาไทย
+    var seed = seedById(out.id);
+    if (seed && out.title === seed.legacyTitle) {
+      out.title = seed.title;
+      if (!out.description) out.description = seed.description;
+    }
+    return out;
+  }
+
+  function copyText(text) {
+    function legacy() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return legacy(); });
+    }
+    return Promise.resolve(legacy());
+  }
+
+  /* =================================================================
+     State
+     ================================================================= */
+  // ข้อมูลเดิมจากเวอร์ชันที่เก็บใน localStorage (ใช้ย้ายขึ้น Firebase ครั้งแรก)
+  var legacyLocal = (function () {
+    var stored = load(STORAGE_KEY, null);
+    return Array.isArray(stored) ? stored.map(normalizeSnippet).filter(Boolean) : null;
+  })();
+  // ค่าที่กรอกในตัวแปรเก็บไว้เฉพาะเครื่องนี้ (เป็นข้อมูลชั่วคราว ไม่ต้องซิงค์)
+  var values = load(VALUES_KEY, {});
+  if (!values || typeof values !== 'object' || Array.isArray(values)) values = {};
+
+  var snippets = [];
+  var ui = { query: '', category: 'all', tag: null, copiedId: null, loading: true };
+  var modal = null;
+
+  function findSnippet(id) { for (var i = 0; i < snippets.length; i++) if (snippets[i].id === id) return snippets[i]; return null; }
+
+  function categoryCounts() {
+    var c = { all: snippets.length, ai: 0, sheets: 0, work: 0 };
+    snippets.forEach(function (s) { c[s.category] = (c[s.category] || 0) + 1; });
+    return c;
+  }
+  function tagCounts() {
+    var map = {};
+    snippets.forEach(function (s) { s.tags.forEach(function (t) { map[t] = (map[t] || 0) + 1; }); });
+    return Object.keys(map).map(function (t) { return [t, map[t]]; })
+      .sort(function (a, b) { return b[1] - a[1] || a[0].localeCompare(b[0]); });
+  }
+  function filteredSnippets() {
+    var terms = ui.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return snippets.filter(function (s) {
+      if (ui.category !== 'all' && s.category !== ui.category) return false;
+      if (ui.tag && s.tags.indexOf(ui.tag) === -1) return false;
+      if (!terms.length) return true;
+      var c = catOf(s.category);
+      var hay = [s.title, s.description, s.content, s.tags.join(' '), c.label, c.short].join('\n').toLowerCase();
+      return terms.every(function (t) { return hay.indexOf(t.replace(/^#/, '')) !== -1; });
+    }).sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  }
+
+  /* =================================================================
+     Firebase Firestore — ซิงค์แบบ Real-time
+     โครงสร้างข้อมูล:
+       libraries/{LIBRARY_ID}                  ← เอกสาร meta (seeded)
+       libraries/{LIBRARY_ID}/snippets/{id}    ← รายการแต่ละชิ้น
+     ================================================================= */
+  var sync = { mode: 'cloud', state: 'connecting', error: null };
+  var db = null, libRef = null, colRef = null, seedChecked = false;
+
+  function toDoc(s) {
+    return {
+      title: s.title, description: s.description || '', category: s.category, tags: s.tags || [],
+      content: s.content, createdAt: s.createdAt || Date.now(), updatedAt: s.updatedAt || Date.now()
+    };
+  }
+
+  function applyLocal(upserts, deletes) {
+    (deletes || []).forEach(function (id) { snippets = snippets.filter(function (s) { return s.id !== id; }); });
+    (upserts || []).forEach(function (s) {
+      var i = -1;
+      for (var k = 0; k < snippets.length; k++) if (snippets[k].id === s.id) { i = k; break; }
+      if (i === -1) snippets.unshift(s); else snippets[i] = s;
+    });
+  }
+
+  // เขียนแบบ batch (Firestore จำกัด 500 operation ต่อ batch)
+  function cloudWrite(upserts, deletes, extraOp) {
+    var ops = [];
+    (upserts || []).forEach(function (s) { ops.push(function (b) { b.set(colRef.doc(s.id), toDoc(s)); }); });
+    (deletes || []).forEach(function (id) { ops.push(function (b) { b.delete(colRef.doc(id)); }); });
+    if (extraOp) ops.push(extraOp);
+    var jobs = [];
+    for (var i = 0; i < ops.length; i += 400) {
+      var batch = db.batch();
+      ops.slice(i, i + 400).forEach(function (op) { op(batch); });
+      jobs.push(batch.commit());
+    }
+    return Promise.all(jobs);
+  }
+
+  /* บันทึกการเปลี่ยนแปลง: อัปเดตหน้าจอทันที แล้วส่งขึ้น Firebase
+     (ถ้าออฟไลน์ Firestore จะเก็บคิวไว้และซิงค์ให้เองเมื่อกลับมาออนไลน์) */
+  function commit(upserts, deletes) {
+    applyLocal(upserts, deletes);
+    renderAll();
+    if (sync.mode === 'cloud') cloudWrite(upserts, deletes).catch(onWriteError);
+    else save(STORAGE_KEY, snippets);
+  }
+
+  function onWriteError(err) {
+    if (window.console) console.error(err);
+    toast('บันทึกขึ้น Firebase ไม่สำเร็จ (' + ((err && err.code) || 'unknown') + ')', 'error');
+    sync.state = 'error';
+    sync.error = err;
+    renderSync();
+  }
+
+  function loadCache() {
+    var cache = load(CLOUD_CACHE_KEY, null);
+    return Array.isArray(cache) ? cache.map(normalizeSnippet).filter(Boolean) : null;
+  }
+
+  // โหมดสำรอง: ใช้เมื่อโหลด Firebase SDK ไม่ได้ (เช่น เปิดไฟล์ครั้งแรกตอนไม่มีอินเทอร์เน็ต)
+  function startLocalMode(reason) {
+    sync.mode = 'local';
+    sync.state = 'local';
+    sync.error = reason || null;
+    var cache = loadCache();
+    snippets = cache && cache.length ? cache : (legacyLocal || seedSnippets());
+    ui.loading = false;
+    renderAll();
+    renderSync();
+  }
+
+  function storageUsable() {
+    try {
+      var k = '__snippet_probe__';
+      window.localStorage.setItem(k, '1');
+      window.localStorage.removeItem(k);
+      return !!window.indexedDB;
+    } catch (e) { return false; }
+  }
+
+  function startCloud() {
+    if (!window.firebase || !firebase.firestore) { startLocalMode('sdk'); return; }
+    try {
+      var app = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
+      db = app.firestore();
+      try { db.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) { /* ignore */ }
+      // แคชออฟไลน์: เปิดเฉพาะเมื่อเบราว์เซอร์อนุญาตให้ใช้ storage (ไม่งั้น Firestore จะค้าง)
+      if (storageUsable()) {
+        db.enablePersistence({ synchronizeTabs: true }).catch(function () { /* ไม่รองรับ — ใช้แคชในหน่วยความจำแทน */ });
+      }
+      libRef = db.collection('libraries').doc(LIBRARY_ID);
+      colRef = libRef.collection('snippets');
+    } catch (e) {
+      if (window.console) console.error(e);
+      startLocalMode(e);
+      return;
+    }
+
+    colRef.onSnapshot({ includeMetadataChanges: true }, function (snap) {
+      var list = [];
+      snap.forEach(function (d) {
+        var data = d.data() || {};
+        data.id = d.id;
+        var s = normalizeSnippet(data);
+        if (s) list.push(s);
+      });
+      var fromCache = snap.metadata.fromCache;
+      if (!fromCache && !seedChecked) { seedChecked = true; ensureSeeded(list.length); }
+      if (!fromCache) save(CLOUD_CACHE_KEY, list);
+
+      snippets = list;
+      if (!fromCache || list.length) ui.loading = false;
+      sync.error = null;
+      sync.state = snap.metadata.hasPendingWrites ? 'pending' : (fromCache ? (navigator.onLine ? 'connecting' : 'offline') : 'online');
+      renderAll();
+      renderSync();
+      refreshOpenModal();
+    }, function (err) {
+      if (window.console) console.error(err);
+      sync.state = 'error';
+      sync.error = err;
+      if (!snippets.length) snippets = loadCache() || [];
+      ui.loading = false;
+      renderAll();
+      renderSync();
+    });
+  }
+
+  // ครั้งแรกที่ใช้งาน: ย้ายข้อมูลเดิมจาก localStorage ขึ้น Firebase หรือสร้างรายการตัวอย่าง
+  function ensureSeeded(serverCount) {
+    libRef.get().then(function (doc) {
+      if (doc.exists && doc.data() && doc.data().seeded) return;
+      var items = [], msg = '';
+      if (serverCount === 0) {
+        if (legacyLocal && legacyLocal.length) {
+          items = legacyLocal;
+          msg = 'ย้ายข้อมูลเดิม ' + items.length + ' รายการจากเครื่องนี้ขึ้น Firebase แล้ว';
+        } else {
+          items = seedSnippets();
+          msg = 'สร้างรายการตัวอย่างใน Firebase แล้ว';
+        }
+      }
+      return cloudWrite(items, [], function (b) { b.set(libRef, { seeded: true, createdAt: Date.now() }, { merge: true }); })
+        .then(function () { if (msg) toast(msg); });
+    }).catch(onWriteError);
+  }
+
+  // ถ้ารายการที่เปิดอยู่ถูกแก้/ลบจากอีกเครื่อง ให้หน้าต่างอัปเดตตาม
+  function refreshOpenModal() {
+    if (!modal || modal.type !== 'use') return;
+    var s = findSnippet(modal.id);
+    if (!s) { closeModal(true); toast('รายการนี้ถูกลบจากอุปกรณ์อื่นแล้ว', 'error'); return; }
+    if (s.content !== modal.content || s.title !== modal.title) openUse(modal.id);
+  }
+
+  var SYNC_UI = {
+    connecting: ['bg-amber-400 animate-pulse', 'กำลังเชื่อมต่อ…'],
+    online: ['bg-emerald-500', 'ซิงค์แล้ว'],
+    pending: ['bg-sky-500 animate-pulse', 'กำลังบันทึก…'],
+    offline: ['bg-zinc-400', 'ออฟไลน์'],
+    error: ['bg-red-500', 'ซิงค์ไม่สำเร็จ'],
+    local: ['bg-zinc-400', 'โหมดในเครื่อง']
+  };
+  function syncErrorText() {
+    var code = (sync.error && sync.error.code) || '';
+    if (code === 'permission-denied') return 'Firestore ปฏิเสธการเข้าถึง (permission-denied) — กรุณาตั้งค่า Firestore Rules ตามไฟล์ firestore.rules ที่อยู่ในโฟลเดอร์เดียวกัน แล้วรีเฟรชหน้านี้';
+    if (code === 'not-found' || code === 'failed-precondition') return 'ยังไม่พบฐานข้อมูล Firestore ในโปรเจกต์นี้ — ไปที่ Firebase Console › Firestore Database › Create database แล้วรีเฟรชหน้านี้';
+    return 'เชื่อมต่อ Firebase ไม่สำเร็จ (' + (code || (sync.error && sync.error.message) || 'unknown') + ') — กำลังแสดงข้อมูลสำเนาล่าสุดในเครื่อง';
+  }
+  function bannerHTML(tone, text) {
+    var cls = { red: 'bg-red-50 text-red-800 ring-red-200', amber: 'bg-amber-50 text-amber-900 ring-amber-200', zinc: 'bg-zinc-100 text-zinc-700 ring-zinc-200' }[tone];
+    return '<div class="mb-5 flex items-start gap-2.5 rounded-xl px-4 py-3 text-sm leading-relaxed ring-1 ring-inset ' + cls + '">' +
+      icon(tone === 'zinc' ? 'cloudOff' : 'alert', 'mt-0.5', 16) + '<span>' + esc(text) + '</span></div>';
+  }
+  function renderSync() {
+    var u = SYNC_UI[sync.state] || SYNC_UI.connecting;
+    var cloudOk = sync.mode === 'cloud' && sync.state !== 'error';
+    $('#syncPill').innerHTML = icon(cloudOk ? 'cloud' : 'cloudOff', 'text-zinc-400', 15) +
+      '<span class="h-2 w-2 rounded-full ' + u[0] + '"></span><span class="hidden sm:inline">' + u[1] + '</span>';
+    $('#footNote').textContent = sync.mode === 'cloud' ? 'ซิงค์ข้อมูลอัตโนมัติผ่าน Firebase ทุกเครื่อง' : 'โหมดในเครื่อง: บันทึกเฉพาะเบราว์เซอร์นี้';
+
+    var banner = '';
+    if (sync.state === 'error') banner = bannerHTML('red', syncErrorText());
+    else if (sync.mode === 'local') banner = bannerHTML('amber', 'โหลด Firebase ไม่สำเร็จ (อาจไม่มีอินเทอร์เน็ต) — ตอนนี้ทำงานในโหมดในเครื่อง การแก้ไขจะไม่ซิงค์ไปเครื่องอื่น กรุณาเชื่อมต่ออินเทอร์เน็ตแล้วรีเฟรชเพื่อกลับมาซิงค์');
+    else if (sync.state === 'offline') banner = bannerHTML('zinc', 'ออฟไลน์อยู่ — ยังแก้ไขได้ตามปกติ ระบบจะซิงค์ให้อัตโนมัติเมื่อกลับมาออนไลน์');
+    $('#syncBanner').innerHTML = banner;
+    if (modal && modal.type === 'sync') openSyncInfo();
+  }
+
+  function openSyncInfo() {
+    closeMore();
+    modal = { type: 'sync' };
+    var u = SYNC_UI[sync.state] || SYNC_UI.connecting;
+    var row = function (k, v) {
+      return '<div class="flex items-start justify-between gap-4 py-2.5 border-b border-zinc-100 last:border-0"><span class="text-zinc-500 shrink-0">' + k + '</span><span class="text-right text-zinc-900 min-w-0 break-all">' + v + '</span></div>';
+    };
+    showModal({
+      size: 'sm',
+      title: 'การซิงค์ข้อมูล (Firebase)',
+      body:
+        (sync.state === 'error' ? bannerHTML('red', syncErrorText()) : '') +
+        '<div class="text-sm">' +
+          row('สถานะ', '<span class="inline-flex items-center gap-1.5"><span class="h-2 w-2 rounded-full ' + u[0] + '"></span>' + u[1] + '</span>') +
+          row('ที่เก็บข้อมูล', sync.mode === 'cloud' ? 'Firebase Firestore' : 'เบราว์เซอร์นี้ (localStorage)') +
+          row('Project ID', '<code class="font-mono text-xs">' + esc(FIREBASE_CONFIG.projectId) + '</code>') +
+          row('รหัสคลัง', '<code class="font-mono text-xs">' + esc(LIBRARY_ID) + '</code>') +
+          row('จำนวนรายการ', snippets.length + ' รายการ') +
+        '</div>' +
+        '<ul class="mt-4 space-y-1.5 text-[13px] text-zinc-500 leading-relaxed list-disc pl-5">' +
+          '<li>ทุกเครื่องที่เปิดไฟล์ index.html นี้จะเห็นข้อมูลชุดเดียวกันแบบ Real-time</li>' +
+          '<li>ค่าที่กรอกในช่องตัวแปรจะเก็บเฉพาะในเครื่องนี้</li>' +
+          '<li>ระหว่างออฟไลน์ยังแก้ไขได้ ระบบจะซิงค์ให้เมื่อกลับมาออนไลน์</li>' +
+        '</ul>',
+      footer: '<button data-action="close-modal" class="' + btnCls('primary') + '">ปิด</button>'
+    });
+  }
+
+  /* =================================================================
+     Render
+     ================================================================= */
+  function badge(catId) {
+    var c = catOf(catId);
+    return '<span class="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11.5px] font-medium ring-1 ring-inset ' + c.badge + '">' +
+      '<span class="h-1.5 w-1.5 rounded-full ' + c.dot + '"></span>' + esc(c.short) + '</span>';
+  }
+  function catIconBox(catId, sizeCls, iconSize) {
+    var c = catOf(catId);
+    return '<span class="' + (sizeCls || 'h-7 w-7') + ' shrink-0 rounded-lg flex items-center justify-center ' + c.iconBg + '">' + icon(c.icon, '', iconSize || 15) + '</span>';
+  }
+  function tagChip(t, extra, count) {
+    var active = ui.tag === t;
+    return '<button data-action="tag" data-tag="' + esc(t) + '" class="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[12px] transition-colors ' +
+      (active ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200') + ' ' + (extra || '') + '">#' + esc(t) +
+      (count != null ? ' <span class="text-[10.5px] ' + (active ? 'text-zinc-400' : 'text-zinc-400') + '">' + count + '</span>' : '') + '</button>';
+  }
+
+  function renderSidebar() {
+    var counts = categoryCounts();
+    var tags = tagCounts();
+
+    var nav = CATEGORIES.map(function (c) {
+      var active = ui.category === c.id;
+      return '<li><button data-action="category" data-cat="' + c.id + '" class="w-full flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-left transition-colors ' +
+        (active ? c.activeNav + ' font-semibold' : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900') + '">' +
+        catIconBox(c.id) +
+        '<span class="flex-1 leading-tight">' + esc(c.label) + '</span>' +
+        '<span class="min-w-[26px] h-5 px-1.5 rounded-full text-[11px] font-semibold inline-flex items-center justify-center tabular-nums ' +
+          (active ? c.countActive : 'bg-zinc-100 text-zinc-500') + '">' + (counts[c.id] || 0) + '</span>' +
+        '</button></li>';
+    }).join('');
+
+    var tagHtml = tags.length
+      ? '<div class="flex flex-wrap gap-1.5 px-1">' + tags.map(function (tc) { return tagChip(tc[0], 'py-1', tc[1]); }).join('') + '</div>'
+      : '<p class="px-2 text-xs text-zinc-400">ยังไม่มีแท็ก</p>';
+
+    $('#sidebar').innerHTML =
+      '<div class="h-14 shrink-0 flex items-center gap-2.5 px-4 border-b border-zinc-100">' +
+        '<div class="h-8 w-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center">' + icon('library', '', 16) + '</div>' +
+        '<div class="leading-tight"><div class="text-sm font-semibold text-zinc-900">คลังสนิปเป็ต &amp; พรอมต์</div>' +
+        '<div class="text-[11px] text-zinc-400">พรอมต์ · สูตร · เทมเพลต</div></div>' +
+      '</div>' +
+      '<div class="flex-1 overflow-y-auto scroll-thin px-3 py-4 space-y-6">' +
+        '<nav><div class="px-2.5 mb-2 text-[11px] font-semibold tracking-wide text-zinc-400">หมวดหมู่</div><ul class="space-y-1">' + nav + '</ul></nav>' +
+        '<div><div class="px-2.5 mb-2 flex items-center justify-between"><span class="text-[11px] font-semibold tracking-wide text-zinc-400">แท็ก</span>' +
+          (ui.tag ? '<button data-action="clear-tag" class="text-[11px] text-zinc-500 hover:text-zinc-900">ล้าง</button>' : '') + '</div>' + tagHtml + '</div>' +
+      '</div>' +
+      '<div class="shrink-0 border-t border-zinc-100 p-3">' +
+        '<div class="px-1 mb-2 text-[11px] font-semibold tracking-wide text-zinc-400">สำรอง / กู้คืนข้อมูล</div>' +
+        '<div class="grid grid-cols-2 gap-2">' +
+          '<button data-action="export" class="' + btnCls('secondary', 'sm') + '">' + icon('download', '', 14) + ' ส่งออก JSON</button>' +
+          '<button data-action="import" class="' + btnCls('secondary', 'sm') + '">' + icon('upload', '', 14) + ' นำเข้า JSON</button>' +
+        '</div>' +
+        '<button data-action="restore" class="w-full mt-2 py-1 flex items-center justify-center gap-1 text-[11.5px] text-zinc-400 hover:text-zinc-700">' +
+          icon('reset', '', 12) + ' คืนค่ารายการตัวอย่าง</button>' +
+      '</div>';
+  }
+
+  function renderMobileNav() {
+    var counts = categoryCounts();
+    $('#mobileCats').innerHTML = CATEGORIES.map(function (c) {
+      var active = ui.category === c.id;
+      return '<button data-action="category" data-cat="' + c.id + '" class="shrink-0 inline-flex items-center gap-1.5 h-8 pl-2.5 pr-1.5 rounded-full text-[13px] font-medium ring-1 ring-inset transition-colors ' +
+        (active ? c.pillActive : 'bg-white text-zinc-600 ring-zinc-200 hover:bg-zinc-50') + '">' +
+        icon(c.icon, active ? '' : catOf(c.id).iconBg.split(' ').pop(), 14) + esc(c.short) +
+        '<span class="min-w-[20px] h-5 px-1.5 rounded-full text-[11px] inline-flex items-center justify-center tabular-nums ' +
+          (active ? 'bg-white/25 text-white' : 'bg-zinc-100 text-zinc-500') + '">' + (counts[c.id] || 0) + '</span></button>';
+    }).join('');
+
+    var tags = tagCounts();
+    var el = $('#mobileTags');
+    el.innerHTML = tags.length
+      ? '<span class="shrink-0 inline-flex items-center text-zinc-400 pr-0.5">' + icon('tag', '', 13) + '</span>' + tags.map(function (tc) { return tagChip(tc[0]); }).join('')
+      : '';
+    el.style.display = tags.length ? '' : 'none';
+
+    $('#moreMenu').innerHTML =
+      '<div class="px-2.5 pt-1.5 pb-1 text-[11px] font-semibold text-zinc-400">สำรอง / กู้คืนข้อมูล</div>' +
+      menuItem('export', 'download', 'ส่งออก JSON') +
+      menuItem('import', 'upload', 'นำเข้า JSON') +
+      '<div class="my-1 border-t border-zinc-100"></div>' +
+      menuItem('restore', 'reset', 'คืนค่ารายการตัวอย่าง');
+  }
+  function menuItem(action, ic, label) {
+    return '<button data-action="' + action + '" class="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-zinc-700 hover:bg-zinc-100">' + icon(ic, 'text-zinc-400', 15) + label + '</button>';
+  }
+
+  function cardHTML(s) {
+    var vars = extractVars(s.content);
+    var copied = ui.copiedId === s.id;
+    var c = catOf(s.category);
+    var tags = s.tags.length ? '<div class="mt-3 flex flex-wrap gap-1.5">' + s.tags.map(function (t) { return tagChip(t, 'text-[11.5px]'); }).join('') + '</div>' : '';
+    return '<article data-action="open" data-id="' + esc(s.id) + '" tabindex="0" class="card anim-pop group relative flex flex-col overflow-hidden bg-white rounded-xl ring-1 ring-zinc-200 hover:ring-zinc-300 hover:shadow-md shadow-sm transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900">' +
+      '<div class="absolute inset-x-0 top-0 h-1 ' + c.bar + '"></div>' +
+      '<div class="p-4 pt-5 pb-3 flex-1 flex flex-col">' +
+        '<div class="flex items-start justify-between gap-3">' +
+          '<div class="flex items-center gap-2 min-w-0">' + catIconBox(s.category, 'h-7 w-7', 14) + badge(s.category) + '</div>' +
+          '<div class="flex items-center gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">' +
+            '<button data-action="edit" data-id="' + esc(s.id) + '" title="แก้ไข" class="p-1.5 rounded-md text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100">' + icon('pencil', '', 15) + '</button>' +
+            '<button data-action="delete" data-id="' + esc(s.id) + '" title="ลบ" class="p-1.5 rounded-md text-zinc-400 hover:text-red-600 hover:bg-red-50">' + icon('trash', '', 15) + '</button>' +
+          '</div>' +
+        '</div>' +
+        '<h3 class="mt-3 text-[15px] font-semibold leading-snug text-zinc-900 line-clamp-2">' + esc(s.title) + '</h3>' +
+        (s.description ? '<p class="mt-1 text-[13px] leading-relaxed text-zinc-500 line-clamp-2">' + esc(s.description) + '</p>' : '') +
+        '<div class="mt-3 relative rounded-lg bg-zinc-50 ring-1 ring-inset ring-zinc-100 px-3 py-2.5 text-[12.5px] leading-relaxed text-zinc-600 max-h-28 overflow-hidden">' +
+          '<pre class="whitespace-pre-wrap break-words font-mono">' + highlight(s.content.slice(0, 500)) + '</pre>' +
+          '<div class="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-zinc-50 to-transparent"></div>' +
+        '</div>' +
+        tags +
+      '</div>' +
+      '<div data-action="noop" class="flex items-center justify-between gap-2 px-4 py-2.5 border-t border-zinc-100 cursor-default">' +
+        '<span class="inline-flex items-center gap-1.5 text-[12px] text-zinc-500">' + icon('braces', 'text-zinc-400', 14) +
+          (vars.length ? 'ตัวแปร ' + vars.length + ' ตัว' : 'ไม่มีตัวแปร') + '</span>' +
+        '<div class="flex items-center gap-1.5">' +
+          (vars.length ? '<button data-action="open" data-id="' + esc(s.id) + '" class="' + btnCls('ghost', 'sm') + '">' + icon('sliders', '', 14) + ' กรอกค่าตัวแปร</button>' : '') +
+          '<button data-action="copy" data-id="' + esc(s.id) + '" class="' + btnCls(copied ? 'success' : 'secondary', 'sm', 'min-w-[96px]') + '">' +
+            icon(copied ? 'check' : 'copy', '', 14) + (copied ? ' คัดลอกแล้ว!' : ' คัดลอก') + '</button>' +
+        '</div>' +
+      '</div>' +
+    '</article>';
+  }
+
+  function renderMain() {
+    if (ui.loading) {
+      $('#pageHead').innerHTML =
+        '<div class="flex items-center gap-3 mb-5 text-sm text-zinc-500">' + icon('database', 'text-zinc-400 animate-pulse', 18) + 'กำลังโหลดข้อมูลจาก Firebase…</div>';
+      var sk = '';
+      for (var i = 0; i < 6; i++) {
+        sk += '<div class="rounded-xl bg-white ring-1 ring-zinc-200 p-4 animate-pulse">' +
+          '<div class="h-5 w-24 rounded bg-zinc-100"></div><div class="mt-3 h-4 w-3/4 rounded bg-zinc-100"></div>' +
+          '<div class="mt-2 h-3 w-full rounded bg-zinc-100"></div><div class="mt-3 h-20 rounded-lg bg-zinc-50"></div></div>';
+      }
+      $('#grid').innerHTML = '<div class="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">' + sk + '</div>';
+      return;
+    }
+    var list = filteredSnippets();
+    var c = catOf(ui.category);
+    var hasFilters = ui.query || ui.tag || ui.category !== 'all';
+
+    var chips = '';
+    var chipCls = 'inline-flex items-center gap-1 text-xs rounded-full pl-2.5 pr-1 py-0.5 ';
+    var xBtn = function (action, dark) {
+      return '<button data-action="' + action + '" aria-label="ล้าง" class="p-0.5 rounded-full ' + (dark ? 'hover:bg-zinc-700' : 'hover:bg-zinc-100') + '">' + icon('x', '', 12) + '</button>';
+    };
+    if (hasFilters) {
+      if (ui.category !== 'all') chips += '<span class="' + chipCls + 'bg-white ring-1 ring-zinc-200 text-zinc-600">' + esc(c.short) + xBtn('clear-cat') + '</span>';
+      if (ui.tag) chips += '<span class="' + chipCls + 'bg-zinc-900 text-white">#' + esc(ui.tag) + xBtn('clear-tag', true) + '</span>';
+      if (ui.query) chips += '<span class="' + chipCls + 'bg-white ring-1 ring-zinc-200 text-zinc-600">“' + esc(ui.query) + '”' + xBtn('clear-query') + '</span>';
+      chips += '<button data-action="clear-all" class="text-xs text-zinc-500 hover:text-zinc-900 hover:underline underline-offset-2">ล้างทั้งหมด</button>';
+    }
+
+    $('#pageHead').innerHTML =
+      '<div class="flex flex-wrap items-end justify-between gap-3 mb-5">' +
+        '<div class="flex items-center gap-3 min-w-0">' + catIconBox(c.id, 'h-10 w-10 rounded-xl', 20) +
+          '<div class="min-w-0"><h1 class="text-xl font-semibold tracking-tight text-zinc-900">' + esc(c.label) + '</h1>' +
+          '<p class="text-sm text-zinc-500">' + esc(c.desc) + ' · แสดง ' + list.length + ' จาก ' + snippets.length + ' รายการ</p></div>' +
+        '</div>' +
+        (chips ? '<div class="flex flex-wrap items-center gap-2">' + chips + '</div>' : '') +
+      '</div>';
+
+    if (!list.length) {
+      var emptyLib = snippets.length === 0;
+      $('#grid').innerHTML =
+        '<div class="flex flex-col items-center justify-center text-center py-20 px-6 rounded-2xl border border-dashed border-zinc-300 bg-white">' +
+          '<div class="h-12 w-12 rounded-xl bg-zinc-100 flex items-center justify-center mb-4 text-zinc-400">' + icon(emptyLib ? 'file' : 'searchX', '', 22) + '</div>' +
+          '<h3 class="text-sm font-semibold text-zinc-900">' + (emptyLib ? 'คลังของคุณยังว่างอยู่' : 'ไม่พบรายการที่ตรงกับตัวกรอง') + '</h3>' +
+          '<p class="text-sm text-zinc-500 mt-1 max-w-sm">' + (emptyLib ? 'เริ่มเพิ่มรายการแรก นำเข้าไฟล์สำรอง หรือคืนค่ารายการตัวอย่าง' : 'ลองเปลี่ยนคำค้นหา หมวดหมู่ หรือแท็ก') + '</p>' +
+          '<div class="mt-5 flex flex-wrap justify-center gap-2">' +
+            (hasFilters ? '<button data-action="clear-all" class="' + btnCls('secondary') + '">ล้างตัวกรอง</button>' : '') +
+            '<button data-action="new" class="' + btnCls('primary') + '">' + icon('plus', '', 15) + ' เพิ่มรายการใหม่</button>' +
+          '</div>' +
+        '</div>';
+    } else {
+      $('#grid').innerHTML = '<div class="grid gap-4 grid-cols-1 md:grid-cols-2 2xl:grid-cols-3">' + list.map(cardHTML).join('') + '</div>';
+    }
+  }
+
+  function renderAll() { renderSidebar(); renderMobileNav(); renderMain(); }
+
+  /* =================================================================
+     Toast
+     ================================================================= */
+  function toast(message, type) {
+    var el = document.createElement('div');
+    el.className = 'anim-pop pointer-events-auto flex items-center gap-2 rounded-lg bg-zinc-900 text-white text-sm px-3.5 py-2.5 shadow-lg max-w-[90vw]';
+    el.innerHTML = icon(type === 'error' ? 'alert' : 'okCircle', type === 'error' ? 'text-red-400' : 'text-emerald-400') + '<span></span>';
+    el.lastChild.textContent = message;
+    $('#toasts').appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 2600);
+  }
+
+  /* =================================================================
+     Modal
+     ================================================================= */
+  var MODAL_W = { sm: 'sm:max-w-md', md: 'sm:max-w-2xl', lg: 'sm:max-w-5xl' };
+  function showModal(o) {
+    $('#modalRoot').innerHTML =
+      '<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6">' +
+        '<div data-action="close-modal" class="absolute inset-0 bg-zinc-900/30 backdrop-blur-[2px] anim-fade"></div>' +
+        '<div role="dialog" aria-modal="true" class="relative w-full ' + MODAL_W[o.size || 'md'] + ' max-h-[92vh] flex flex-col bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl ring-1 ring-zinc-200 anim-pop">' +
+          '<div class="flex items-start justify-between gap-4 px-5 sm:px-6 pt-5 pb-4 border-b border-zinc-100">' +
+            '<div class="min-w-0"><h2 class="text-base font-semibold text-zinc-900 truncate">' + esc(o.title) + '</h2>' + (o.subtitle || '') + '</div>' +
+            '<button data-action="close-modal" aria-label="ปิด" class="shrink-0 -mr-1 p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100">' + icon('x', '', 18) + '</button>' +
+          '</div>' +
+          '<div class="flex-1 overflow-y-auto scroll-thin px-5 sm:px-6 py-5">' + o.body + '</div>' +
+          (o.footer ? '<div class="px-5 sm:px-6 py-4 border-t border-zinc-100 bg-zinc-50/60 sm:rounded-b-2xl flex flex-wrap items-center justify-end gap-2">' + o.footer + '</div>' : '') +
+        '</div>' +
+      '</div>';
+  }
+  function closeModal(skipReturn) {
+    var m = modal;
+    modal = null;
+    $('#modalRoot').innerHTML = '';
+    if (!skipReturn && m && m.returnTo && findSnippet(m.returnTo)) openUse(m.returnTo);
+  }
+
+  /* ---------- กรอกค่าตัวแปร + Live Preview ---------- */
+  function openUse(id) {
+    var s = findSnippet(id);
+    if (!s) return;
+    closeMore();
+    modal = { type: 'use', id: id, content: s.content, title: s.title };
+    var vars = extractVars(s.content);
+    var vals = values[id] || {};
+
+    var fields = vars.map(function (v, i) {
+      var val = vals[v] || '';
+      var input = isLongVar(v)
+        ? '<textarea rows="5" data-var="' + esc(v) + '" placeholder="' + esc(varPlaceholder(v)) + '" class="var-input ' + FIELD + ' font-mono text-[13px] leading-relaxed resize-y scroll-thin">' + esc(val) + '</textarea>'
+        : '<input type="text" data-var="' + esc(v) + '" value="' + esc(val) + '" placeholder="' + esc(varPlaceholder(v)) + '" class="var-input ' + FIELD + '">';
+      return '<label class="block' + (i ? ' mt-3.5' : '') + '"><span class="flex flex-wrap items-center gap-2 mb-1.5">' +
+        '<span class="text-[13px] font-medium text-zinc-700">' + esc(varLabel(v)) + '</span>' +
+        '<code class="text-[11px] font-mono text-sky-700 bg-sky-50 px-1.5 rounded">{{' + esc(v) + '}}</code></span>' + input + '</label>';
+    }).join('');
+
+    var varsPanel = vars.length
+      ? '<div><div class="flex items-center justify-between mb-3"><h3 class="text-xs font-semibold tracking-wide text-zinc-500">กรอกค่าตัวแปร</h3><span id="useCount" class="text-xs text-zinc-400"></span></div>' +
+        '<div class="h-1 w-full bg-zinc-100 rounded-full mb-4 overflow-hidden"><div id="useBar" class="h-full bg-emerald-500 transition-all" style="width:0"></div></div>' + fields + '</div>'
+      : '';
+    var previewPanel =
+      '<div class="min-w-0"><div class="flex items-center justify-between mb-3">' +
+        '<h3 class="text-xs font-semibold tracking-wide text-zinc-500 flex items-center gap-1.5">' +
+          '<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>' +
+          'ตัวอย่างผลลัพธ์ (Live Preview)</h3>' +
+        '<span id="useChars" class="text-xs text-zinc-400"></span></div>' +
+        '<pre id="usePreview" class="whitespace-pre-wrap break-words rounded-xl bg-zinc-50 ring-1 ring-inset ring-zinc-200 p-4 font-mono text-[13px] leading-relaxed text-zinc-700 max-h-[55vh] overflow-y-auto scroll-thin"></pre>' +
+        (vars.length ? '' : '<p class="mt-3 text-xs text-zinc-400">รายการนี้ไม่มีตัวแปร กด "คัดลอกผลลัพธ์" เพื่อนำไปใช้ได้ทันที</p>') +
+      '</div>';
+
+    var subtitle = '<div class="mt-1.5 flex flex-wrap items-center gap-2">' + badge(s.category) +
+      s.tags.map(function (t) { return '<span class="text-[11.5px] text-zinc-500">#' + esc(t) + '</span>'; }).join('') + '</div>' +
+      (s.description ? '<p class="mt-2 text-[13px] text-zinc-500 leading-relaxed">' + esc(s.description) + '</p>' : '');
+
+    showModal({
+      size: vars.length ? 'lg' : 'md',
+      title: s.title,
+      subtitle: subtitle,
+      body: vars.length ? '<div class="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">' + varsPanel + previewPanel + '</div>' : previewPanel,
+      footer:
+        '<span class="mr-auto hidden sm:inline text-xs text-zinc-400">กด <kbd class="px-1.5 py-0.5 rounded border border-zinc-200 bg-white font-sans">Ctrl</kbd> + <kbd class="px-1.5 py-0.5 rounded border border-zinc-200 bg-white font-sans">Enter</kbd> เพื่อคัดลอก</span>' +
+        '<button data-action="use-edit" class="' + btnCls('ghost') + '">' + icon('pencil', '', 15) + ' แก้ไข</button>' +
+        (vars.length ? '<button id="useReset" data-action="use-reset" class="' + btnCls('secondary') + '">' + icon('reset', '', 15) + ' ล้างค่า</button>' : '') +
+        '<button id="useCopy" data-action="use-copy" class="' + btnCls('primary', 'md', 'min-w-[150px]') + '">' + icon('copy', '', 15) + ' คัดลอกผลลัพธ์</button>'
+    });
+    updateUse();
+    var first = document.querySelector('.var-input');
+    if (first) setTimeout(function () { first.focus(); }, 30);
+  }
+
+  function updateUse() {
+    if (!modal || modal.type !== 'use') return;
+    var s = findSnippet(modal.id);
+    var vals = values[modal.id] || {};
+    var vars = extractVars(s.content);
+    var filled = vars.filter(function (v) { return vals[v]; }).length;
+    $('#usePreview').innerHTML = highlight(s.content, vals);
+    $('#useChars').textContent = fillVars(s.content, vals).length.toLocaleString('th-TH') + ' ตัวอักษร';
+    if (vars.length) {
+      $('#useCount').textContent = 'กรอกแล้ว ' + filled + ' / ' + vars.length;
+      $('#useBar').style.width = (filled / vars.length * 100) + '%';
+      $('#useReset').disabled = filled === 0;
+    }
+  }
+
+  function doCopy(text, unfilled) {
+    return copyText(text).then(function (ok) {
+      if (!ok) toast('ไม่สามารถเข้าถึงคลิปบอร์ดได้', 'error');
+      else if (unfilled > 0) toast('คัดลอกแล้ว — ยังไม่ได้กรอกตัวแปร ' + unfilled + ' ตัว');
+      else toast('คัดลอกไปยังคลิปบอร์ดแล้ว');
+      return ok;
+    });
+  }
+
+  function useCopy() {
+    var s = findSnippet(modal.id);
+    var vals = values[modal.id] || {};
+    var unfilled = extractVars(s.content).filter(function (v) { return !vals[v]; }).length;
+    doCopy(fillVars(s.content, vals), unfilled).then(function (ok) {
+      var b = $('#useCopy');
+      if (!ok || !b) return;
+      b.className = btnCls('success', 'md', 'min-w-[150px]');
+      b.innerHTML = icon('check', '', 15) + ' คัดลอกแล้ว!';
+      setTimeout(function () {
+        if (!b.isConnected) return;
+        b.className = btnCls('primary', 'md', 'min-w-[150px]');
+        b.innerHTML = icon('copy', '', 15) + ' คัดลอกผลลัพธ์';
+      }, 1800);
+    });
+  }
+
+  function quickCopy(id) {
+    var s = findSnippet(id);
+    if (!s) return;
+    var vars = extractVars(s.content);
+    var vals = values[id] || {};
+    var unfilled = vars.filter(function (v) { return !vals[v]; }).length;
+    if (vars.length && unfilled === vars.length) { openUse(id); return; } // ยังไม่กรอกเลย → เปิดฟอร์มกรอกค่าก่อน
+    doCopy(fillVars(s.content, vals), unfilled).then(function (ok) {
+      if (!ok) return;
+      ui.copiedId = id;
+      renderMain();
+      setTimeout(function () { if (ui.copiedId === id) { ui.copiedId = null; renderMain(); } }, 1800);
+    });
+  }
+
+  /* ---------- เพิ่ม / แก้ไข ---------- */
+  function openEdit(id, returnTo) {
+    var s = id ? findSnippet(id) : null;
+    closeMore();
+    var defaultCat = s ? s.category : (ui.category !== 'all' ? ui.category : 'ai');
+    modal = { type: 'edit', returnTo: returnTo || null, draft: { id: s ? s.id : null, category: defaultCat, tags: s ? s.tags.slice() : [] } };
+
+    var options = CATEGORIES.filter(function (c) { return c.id !== 'all'; }).map(function (c) {
+      return '<option value="' + c.id + '"' + (c.id === defaultCat ? ' selected' : '') + '>' + esc(c.label) + '</option>';
+    }).join('');
+    var label = function (forId, text, hint) {
+      return '<label for="' + forId + '" class="block text-[13px] font-medium text-zinc-700 mb-1.5">' + text + (hint ? ' <span class="font-normal text-zinc-400">' + hint + '</span>' : '') + '</label>';
+    };
+
+    showModal({
+      size: 'md',
+      title: s ? 'แก้ไขรายการ' : 'เพิ่มรายการใหม่',
+      body:
+        '<div class="space-y-5">' +
+          '<div>' + label('f-title', 'ชื่อรายการ') +
+            '<input id="f-title" type="text" class="' + FIELD + '" placeholder="เช่น พรอมต์เขียนโครงร่างบทความ" value="' + esc(s ? s.title : '') + '"></div>' +
+          '<div>' + label('f-cat', 'หมวดหมู่') +
+            '<div class="relative">' +
+              '<span id="catIcon" class="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2">' + catIconBox(defaultCat, 'h-7 w-7', 14) + '</span>' +
+              '<select id="f-cat" class="w-full h-11 appearance-none rounded-lg bg-white pl-11 pr-9 text-sm text-zinc-900 ring-1 ring-inset ring-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-900 cursor-pointer">' + options + '</select>' +
+              '<span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">' + icon('chevronDown', '', 16) + '</span>' +
+            '</div>' +
+            '<p id="catDesc" class="mt-1.5 text-xs text-zinc-400">' + esc(catOf(defaultCat).desc) + '</p></div>' +
+          '<div>' + label('f-desc', 'คำอธิบาย', '(ไม่บังคับ)') +
+            '<textarea id="f-desc" rows="2" class="' + FIELD + ' resize-y" placeholder="อธิบายสั้น ๆ ว่ารายการนี้ใช้ทำอะไร เพื่อให้ค้นหาง่ายขึ้น">' + esc(s ? s.description : '') + '</textarea></div>' +
+          '<div>' + label('f-tag', 'แท็ก') +
+            '<div id="tagBox" class="flex flex-wrap items-center gap-1.5 rounded-lg bg-white px-2 py-1.5 ring-1 ring-inset ring-zinc-200 focus-within:ring-2 focus-within:ring-zinc-900 min-h-[40px] cursor-text">' +
+              '<span id="tagChips" class="contents"></span>' +
+              '<input id="f-tag" type="text" autocomplete="off" class="flex-1 min-w-[140px] text-sm px-1 py-0.5 bg-transparent focus:outline-none placeholder:text-zinc-400">' +
+            '</div>' +
+            '<div id="tagSuggest" class="mt-2 flex flex-wrap gap-1.5"></div></div>' +
+          '<div><div class="flex items-end justify-between mb-1.5">' + label('f-content', 'เนื้อหา').replace('mb-1.5', 'mb-0') +
+              '<button type="button" data-action="insert-var" class="inline-flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-800">' + icon('braces', '', 13) + ' แทรกตัวแปร</button></div>' +
+            '<textarea id="f-content" rows="11" class="' + FIELD + ' font-mono text-[13px] leading-relaxed resize-y scroll-thin" placeholder="พิมพ์พรอมต์ สูตร หรือเทมเพลตที่นี่&#10;ใช้ {{ชื่อตัวแปร}} สำหรับค่าที่ต้องการกรอกภายหลัง">' + esc(s ? s.content : '') + '</textarea>' +
+            '<div id="detected" class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500"></div></div>' +
+        '</div>',
+      footer:
+        '<span id="editErr" class="mr-auto text-sm text-red-600 inline-flex items-center gap-1.5"></span>' +
+        '<button data-action="close-modal" class="' + btnCls('secondary') + '">ยกเลิก</button>' +
+        '<button data-action="edit-save" class="' + btnCls('primary') + '">' + icon('check', '', 15) + (s ? ' บันทึกการแก้ไข' : ' เพิ่มรายการ') + '</button>'
+    });
+    renderTagChips();
+    renderTagSuggest();
+    updateDetected();
+    setTimeout(function () { var t = $('#f-title'); if (t) t.focus(); }, 30);
+  }
+
+  function renderTagChips() {
+    var tags = modal.draft.tags;
+    $('#tagChips').innerHTML = tags.map(function (t) {
+      return '<span class="inline-flex items-center gap-1 text-[12px] bg-zinc-100 text-zinc-700 rounded-md pl-2 pr-1 py-0.5">#' + esc(t) +
+        '<button type="button" data-action="tag-remove" data-tag="' + esc(t) + '" aria-label="ลบแท็ก" class="text-zinc-400 hover:text-zinc-800">' + icon('x', '', 12) + '</button></span>';
+    }).join('');
+    $('#f-tag').placeholder = tags.length ? '' : 'พิมพ์แท็กแล้วกด Enter';
+  }
+  function renderTagSuggest() {
+    var q = normTag($('#f-tag').value);
+    var list = tagCounts().map(function (tc) { return tc[0]; }).filter(function (t) {
+      return modal.draft.tags.indexOf(t) === -1 && (!q || t.indexOf(q) !== -1);
+    }).slice(0, 8);
+    $('#tagSuggest').innerHTML = list.map(function (t) {
+      return '<button type="button" data-action="tag-suggest" data-tag="' + esc(t) + '" class="text-[11.5px] px-2 py-0.5 rounded-md border border-dashed border-zinc-300 text-zinc-500 hover:border-zinc-500 hover:text-zinc-800">+ ' + esc(t) + '</button>';
+    }).join('');
+  }
+  function addTag(raw) {
+    var t = normTag(raw || '');
+    if (t && modal.draft.tags.indexOf(t) === -1) modal.draft.tags.push(t);
+    $('#f-tag').value = '';
+    renderTagChips();
+    renderTagSuggest();
+  }
+  function updateDetected() {
+    var vars = extractVars($('#f-content').value);
+    $('#detected').innerHTML = icon('wand', 'text-zinc-400', 13) + (vars.length
+      ? '<span>ตรวจพบตัวแปร:</span>' + vars.map(function (v) { return '<code class="font-mono text-[11px] text-sky-700 bg-sky-50 ring-1 ring-sky-200 px-1.5 py-0.5 rounded">' + esc(v) + '</code>'; }).join('')
+      : '<span>ยังไม่พบตัวแปร — ใส่ชื่อในรูปแบบ <code class="font-mono text-sky-600">{{ชื่อตัวแปร}}</code> เพื่อให้กรอกค่าได้ภายหลัง</span>');
+  }
+  function insertVariable() {
+    var el = $('#f-content'), ph = '{{variable_name}}';
+    var start = el.selectionStart, end = el.selectionEnd;
+    el.value = el.value.slice(0, start) + ph + el.value.slice(end);
+    el.focus();
+    el.setSelectionRange(start + 2, start + ph.length - 2);
+    updateDetected();
+  }
+  function saveEdit() {
+    var title = $('#f-title').value.trim();
+    var content = $('#f-content').value;
+    var description = $('#f-desc').value.trim();
+    var err = $('#editErr');
+    if (!title) { err.innerHTML = icon('alert', '', 15) + 'กรุณากรอกชื่อรายการ'; $('#f-title').focus(); return; }
+    if (!content.trim()) { err.innerHTML = icon('alert', '', 15) + 'กรุณากรอกเนื้อหา'; $('#f-content').focus(); return; }
+    if ($('#f-tag').value.trim()) addTag($('#f-tag').value);
+
+    var d = modal.draft, now = Date.now();
+    d.category = $('#f-cat').value;
+    var existing = d.id ? findSnippet(d.id) : null;
+    commit([{
+      id: d.id || uid(), title: title, description: description, category: d.category, tags: d.tags.slice(),
+      content: content, createdAt: existing ? existing.createdAt : now, updatedAt: now
+    }], []);
+    toast(d.id ? 'บันทึกการแก้ไขแล้ว' : 'เพิ่มรายการใหม่แล้ว');
+    closeModal();
+  }
+
+  /* ---------- ยืนยันการลบ / นำเข้า / คืนค่า ---------- */
+  function openDelete(id) {
+    var s = findSnippet(id);
+    if (!s) return;
+    modal = { type: 'delete', id: id };
+    showModal({
+      size: 'sm',
+      title: 'ลบรายการนี้?',
+      body: '<p class="text-sm text-zinc-600 leading-relaxed">“<span class="font-semibold text-zinc-900">' + esc(s.title) + '</span>” จะถูกลบออกจากคลังอย่างถาวร หากอาจต้องใช้ภายหลัง แนะนำให้ “ส่งออก JSON” เพื่อสำรองไว้ก่อน</p>',
+      footer: '<button data-action="close-modal" class="' + btnCls('secondary') + '">ยกเลิก</button>' +
+              '<button data-action="delete-confirm" class="' + btnCls('danger') + '">' + icon('trash', '', 15) + ' ลบ</button>'
+    });
+  }
+  function confirmDelete() {
+    var id = modal.id;
+    delete values[id];
+    save(VALUES_KEY, values);
+    closeModal(true);
+    commit([], [id]);
+    toast('ลบรายการแล้ว');
+  }
+
+  function openImport(data) {
+    modal = { type: 'import', data: data };
+    showModal({
+      size: 'sm',
+      title: 'นำเข้าข้อมูลจากไฟล์ JSON',
+      body: '<div class="flex items-start gap-3"><div class="h-10 w-10 shrink-0 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-500">' + icon('file', '', 18) + '</div>' +
+        '<div class="text-sm text-zinc-600 space-y-2 leading-relaxed">' +
+          '<p>ไฟล์ <span class="font-semibold text-zinc-900 break-all">' + esc(data.fileName) + '</span> มีทั้งหมด <span class="font-semibold text-zinc-900">' + data.items.length + '</span> รายการ</p>' +
+          '<p><span class="font-semibold text-zinc-900">รวมข้อมูล</span> — เพิ่มเข้าไปในคลังเดิม (รายการที่ ID ซ้ำจะถูกอัปเดต)<br>' +
+          '<span class="font-semibold text-zinc-900">แทนที่ทั้งหมด</span> — ลบรายการเดิม ' + snippets.length + ' รายการก่อนนำเข้า</p>' +
+        '</div></div>',
+      footer: '<button data-action="close-modal" class="' + btnCls('secondary') + '">ยกเลิก</button>' +
+              '<button data-action="import-replace" class="' + btnCls('danger') + '">แทนที่ทั้งหมด</button>' +
+              '<button data-action="import-merge" class="' + btnCls('primary') + '">รวมข้อมูล</button>'
+    });
+  }
+  function applyImport(mode) {
+    var d = modal.data;
+    ui.category = 'all'; ui.tag = null;
+    closeModal(true);
+    if (mode === 'replace') {
+      var keep = {};
+      d.items.forEach(function (item) { keep[item.id] = true; });
+      var removed = snippets.filter(function (s) { return !keep[s.id]; }).map(function (s) { return s.id; });
+      values = d.values;
+      commit(d.items, removed);
+    } else {
+      Object.keys(d.values).forEach(function (k) { values[k] = d.values[k]; });
+      commit(d.items, []);
+    }
+    save(VALUES_KEY, values);
+    toast('นำเข้า ' + d.items.length + ' รายการเรียบร้อย');
+  }
+
+  function openRestore() {
+    closeMore();
+    modal = { type: 'restore' };
+    showModal({
+      size: 'sm',
+      title: 'คืนค่ารายการตัวอย่าง?',
+      body: '<p class="text-sm text-zinc-600 leading-relaxed">รายการตัวอย่าง 8 รายการที่เคยลบไปจะถูกเพิ่มกลับเข้ามา ส่วนรายการที่คุณสร้างเองจะไม่ได้รับผลกระทบ</p>',
+      footer: '<button data-action="close-modal" class="' + btnCls('secondary') + '">ยกเลิก</button>' +
+              '<button data-action="restore-confirm" class="' + btnCls('primary') + '">คืนค่า</button>'
+    });
+  }
+  function restoreSamples() {
+    var missing = seedSnippets().filter(function (s) { return !findSnippet(s.id); });
+    var added = missing.length;
+    closeModal(true);
+    if (added) commit(missing, []);
+    toast(added ? 'คืนค่ารายการตัวอย่าง ' + added + ' รายการแล้ว' : 'รายการตัวอย่างครบอยู่แล้ว');
+  }
+
+  /* ---------- ส่งออก / นำเข้าไฟล์ ---------- */
+  function exportJSON() {
+    closeMore();
+    var payload = { app: 'personal-snippet-library', version: 2, exportedAt: new Date().toISOString(), snippets: snippets, values: values };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'snippets-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast('ส่งออก ' + snippets.length + ' รายการแล้ว');
+  }
+
+  $('#fileInput').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var parsed = JSON.parse(reader.result);
+        var arr = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.snippets) ? parsed.snippets : null);
+        if (!arr) throw new Error('format');
+        var items = arr.map(normalizeSnippet).filter(Boolean);
+        if (!items.length) throw new Error('empty');
+        var vals = parsed && parsed.values && typeof parsed.values === 'object' && !Array.isArray(parsed.values) ? parsed.values : {};
+        openImport({ items: items, values: vals, fileName: file.name });
+      } catch (err) {
+        toast('ไฟล์ JSON ไม่ถูกต้อง — ไม่พบรายการที่นำเข้าได้', 'error');
+      }
+    };
+    reader.onerror = function () { toast('ไม่สามารถอ่านไฟล์ได้', 'error'); };
+    reader.readAsText(file);
+  });
+
+  /* =================================================================
+     Events
+     ================================================================= */
+  function closeMore() { $('#moreMenu').classList.add('hidden'); }
+
+  var actions = {
+    'noop': function () {},
+    'open': function (el) { openUse(el.dataset.id); },
+    'edit': function (el) { openEdit(el.dataset.id); },
+    'delete': function (el) { openDelete(el.dataset.id); },
+    'copy': function (el) { quickCopy(el.dataset.id); },
+    'new': function () { openEdit(null); },
+    'category': function (el) {
+      ui.category = el.dataset.cat;
+      renderAll();
+      $('#main').scrollTop = 0;
+      var pill = document.querySelector('#mobileCats [data-cat="' + ui.category + '"]');
+      if (pill && pill.scrollIntoView) pill.scrollIntoView({ block: 'nearest', inline: 'center' });
+    },
+    'tag': function (el) { var t = el.dataset.tag; ui.tag = ui.tag === t ? null : t; renderAll(); },
+    'clear-tag': function () { ui.tag = null; renderAll(); },
+    'clear-cat': function () { ui.category = 'all'; renderAll(); },
+    'clear-query': function () { setQuery(''); },
+    'clear-all': function () { ui.tag = null; ui.category = 'all'; setQuery(''); renderAll(); },
+    'export': exportJSON,
+    'import': function () { closeMore(); $('#fileInput').click(); },
+    'restore': openRestore,
+    'sync-info': openSyncInfo,
+    'more-toggle': function () { $('#moreMenu').classList.toggle('hidden'); },
+    'close-modal': function () { closeModal(); },
+    'use-copy': useCopy,
+    'use-reset': function () {
+      values[modal.id] = {};
+      save(VALUES_KEY, values);
+      Array.prototype.forEach.call(document.querySelectorAll('.var-input'), function (i) { i.value = ''; });
+      updateUse();
+      var f = document.querySelector('.var-input'); if (f) f.focus();
+    },
+    'use-edit': function () { var id = modal.id; closeModal(true); openEdit(id, id); },
+    'edit-save': saveEdit,
+    'tag-remove': function (el) {
+      var t = el.dataset.tag;
+      modal.draft.tags = modal.draft.tags.filter(function (x) { return x !== t; });
+      renderTagChips(); renderTagSuggest(); $('#f-tag').focus();
+    },
+    'tag-suggest': function (el) { addTag(el.dataset.tag); $('#f-tag').focus(); },
+    'insert-var': insertVariable,
+    'delete-confirm': confirmDelete,
+    'import-merge': function () { applyImport('merge'); },
+    'import-replace': function () { applyImport('replace'); },
+    'restore-confirm': restoreSamples
+  };
+
+  document.addEventListener('click', function (e) {
+    // ปิดเมนู "เพิ่มเติม" เมื่อคลิกที่อื่น
+    if (!e.target.closest('#moreMenu') && !e.target.closest('#moreBtn')) closeMore();
+    if (e.target.id === 'tagBox') { $('#f-tag').focus(); return; }
+    var el = e.target.closest('[data-action]');
+    if (!el) return;
+    var fn = actions[el.dataset.action];
+    if (fn) fn(el, e);
+  });
+  // คลิกแท็กแนะนำแล้วไม่ให้ช่องพิมพ์เสียโฟกัส
+  document.addEventListener('mousedown', function (e) {
+    if (e.target.closest('[data-action="tag-suggest"]')) e.preventDefault();
+  });
+
+  $('#modalRoot').addEventListener('input', function (e) {
+    var t = e.target;
+    if (!modal) return;
+    if (modal.type === 'use' && t.classList.contains('var-input')) {
+      var vals = values[modal.id] || (values[modal.id] = {});
+      vals[t.dataset.var] = t.value;
+      save(VALUES_KEY, values);
+      updateUse();
+    } else if (modal.type === 'edit') {
+      if (t.id === 'f-content') updateDetected();
+      if (t.id === 'f-tag') renderTagSuggest();
+      if (t.id === 'f-title' || t.id === 'f-content') $('#editErr').innerHTML = '';
+    }
+  });
+  $('#modalRoot').addEventListener('change', function (e) {
+    if (modal && modal.type === 'edit' && e.target.id === 'f-cat') {
+      modal.draft.category = e.target.value;
+      $('#catIcon').innerHTML = catIconBox(e.target.value, 'h-7 w-7', 14);
+      $('#catDesc').textContent = catOf(e.target.value).desc;
+    }
+  });
+  $('#modalRoot').addEventListener('focusout', function (e) {
+    if (modal && modal.type === 'edit' && e.target.id === 'f-tag' && e.target.value.trim()) addTag(e.target.value);
+  });
+
+  function setQuery(q) {
+    ui.query = q;
+    var input = $('#search');
+    if (input.value !== q) input.value = q;
+    $('#searchClear').classList.toggle('hidden', !q);
+    $('#searchHint').style.display = q ? 'none' : '';
+    renderMain();
+  }
+  $('#search').addEventListener('input', function (e) { setQuery(e.target.value); });
+
+  document.addEventListener('keydown', function (e) {
+    var t = e.target, tag = (t.tagName || '').toLowerCase();
+    var typing = tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable;
+
+    if (modal) {
+      if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (modal.type === 'use') useCopy();
+        else if (modal.type === 'edit') saveEdit();
+        return;
+      }
+      if (t.id === 'f-tag') {
+        if ((e.key === 'Enter' || e.key === ',') && !e.isComposing) { e.preventDefault(); addTag(t.value); }
+        else if (e.key === 'Backspace' && !t.value && modal.draft.tags.length) { modal.draft.tags.pop(); renderTagChips(); renderTagSuggest(); }
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      closeMore();
+      if (t.id === 'search') { setQuery(''); t.blur(); }
+      return;
+    }
+    if (typing) return;
+    if (e.key === 'Enter' && t.classList && t.classList.contains('card')) { openUse(t.dataset.id); return; }
+    if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
+    else if ((e.key === 'n' || e.key === 'N' || e.key === 'ื') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openEdit(null); }
+  });
+
+  /* =================================================================
+     เริ่มต้น
+     ================================================================= */
+  $('#mobileLogo').innerHTML = icon('library', '', 16);
+  $('#searchIcon').innerHTML = icon('search', '', 16);
+  $('#searchClear').innerHTML = icon('x', '', 14);
+  $('#newBtn').innerHTML = icon('plus', '', 16) + '<span class="hidden sm:inline">เพิ่มรายการใหม่</span>';
+  $('#moreBtn').innerHTML = icon('more', '', 18);
+  renderAll();
+  renderSync();
+  startCloud();
+
+  // อัปเดตสถานะเมื่อเครือข่ายหลุด / กลับมา
+  window.addEventListener('offline', function () {
+    if (sync.mode === 'cloud' && sync.state !== 'error') { sync.state = 'offline'; renderSync(); }
+  });
+  window.addEventListener('online', function () {
+    if (sync.mode === 'cloud' && sync.state === 'offline') { sync.state = 'connecting'; renderSync(); }
+  });
+  // ถ้าโหลดนานเกินไป (เช่น เน็ตช้า/ออฟไลน์) แสดงสำเนาล่าสุดในเครื่องไปก่อน
+  setTimeout(function () {
+    if (!ui.loading) return;
+    ui.loading = false;
+    snippets = loadCache() || legacyLocal || [];
+    if (sync.mode === 'cloud' && sync.state === 'connecting') sync.state = navigator.onLine ? 'connecting' : 'offline';
+    renderAll();
+    renderSync();
+  }, 8000);
+
+  // ถ้าโหลด Tailwind จาก CDN ไม่ได้ (ไม่มีอินเทอร์เน็ต) แจ้งเตือนให้ทราบ — ฟังก์ชันทั้งหมดยังใช้งานได้
+  if (!window.tailwind) {
+    var warn = document.createElement('div');
+    warn.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#fff7ed;color:#9a3412;border-bottom:1px solid #fed7aa;padding:10px 16px;font:14px/1.5 "Leelawadee UI",Tahoma,sans-serif;text-align:center');
+    warn.textContent = 'โหลด Tailwind CSS จากอินเทอร์เน็ตไม่สำเร็จ หน้าเว็บจึงยังไม่มีสไตล์ กรุณาเชื่อมต่ออินเทอร์เน็ตแล้วรีเฟรชหน้า (ข้อมูลและฟังก์ชันทั้งหมดยังใช้งานได้ตามปกติ)';
+    document.body.appendChild(warn);
+  }
+})();
+</script>
+</body>
+</html>
